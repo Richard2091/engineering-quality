@@ -23,11 +23,37 @@ REQUIRED_FILES = {
     "references/templates/remediation-plan-template.md",
     "references/templates/release-gate-template.md",
     "references/templates/change-summary-template.md",
+    "references/project-types/frontend.md",
+    "references/project-types/backend.md",
+    "references/project-types/data-and-model.md",
+    "references/project-types/delivery-and-operations.md",
+    "references/project-types/library-and-cli.md",
+    "references/project-types/infrastructure.md",
 }
+
+PROJECT_TYPE_SECTIONS = (
+    "## 适用条件",
+    "## 项目类型画像",
+    "## 需求与设计",
+    "## 实施规范",
+    "## 测试规范",
+    "## 交付与运维",
+    "## 典型问题和反模式",
+    "## 验收证据",
+)
+
+PROJECT_TYPE_FILES = (
+    "frontend.md",
+    "backend.md",
+    "data-and-model.md",
+    "delivery-and-operations.md",
+    "library-and-cli.md",
+    "infrastructure.md",
+)
 
 TEMPLATE_MARKERS = {
     "project-profile-template.md": ("项目类型", "风险等级", "待确认事项"),
-    "implementation-plan-template.md": ("影响模块", "变更计划", "回滚"),
+    "implementation-plan-template.md": ("影响模块", "阶段计划", "回滚"),
     "review-report-template.md": ("总体结论", "问题清单", "整改计划"),
     "remediation-plan-template.md": ("问题编号", "验证命令", "复审结论"),
     "release-gate-template.md": ("发布门禁", "发布结论", "回滚"),
@@ -108,6 +134,28 @@ class 结构校验器:
             if 直接文件数 > 12:
                 self.记录警告(f"目录直接文件数为 {直接文件数}，请评估分组：{目录.relative_to(self.根目录)}")
 
+    def 校验项目类型规则(self) -> None:
+        """检查六类项目规则是否具备统一的可执行章节。"""
+        # 逐个检查项目类型文件的章节完整性，避免规则退化为简略清单。
+        规则目录 = self.根目录 / "references/project-types"
+        for 文件名 in PROJECT_TYPE_FILES:
+            文件 = 规则目录 / 文件名
+            if not 文件.is_file():
+                continue
+            文本 = 文件.read_text(encoding="utf-8")
+            标题列表 = [
+                匹配.group(1).strip()
+                for 匹配 in re.finditer(r"^##\s+(.+?)\s*$", 文本, flags=re.MULTILINE)
+            ]
+            缺少章节 = [章节.removeprefix("## ") for 章节 in PROJECT_TYPE_SECTIONS if 章节.removeprefix("## ") not in 标题列表]
+            for 章节 in 缺少章节:
+                self.记录错误(f"项目类型规则缺少顶层章节“## {章节}”：{文件.relative_to(self.根目录)}")
+            if 标题列表[: len(PROJECT_TYPE_SECTIONS)] != [章节.removeprefix("## ") for 章节 in PROJECT_TYPE_SECTIONS]:
+                self.记录错误(f"项目类型规则顶层章节顺序不符合约定：{文件.relative_to(self.根目录)}")
+            for 章节 in PROJECT_TYPE_SECTIONS:
+                标题 = 章节.removeprefix("## ")
+                if 标题列表.count(标题) > 1:
+                    self.记录错误(f"项目类型规则存在重复顶层章节“{章节}”：{文件.relative_to(self.根目录)}")
     def 校验模板(self) -> None:
         """检查模板是否包含能够支撑闭环的实际字段。"""
         模板目录 = self.根目录 / "references/templates"
@@ -127,6 +175,7 @@ class 结构校验器:
         self.校验编码()
         self.校验引用()
         self.校验规模()
+        self.校验项目类型规则()
         self.校验模板()
         for 消息 in self.警告:
             print(f"警告：{消息}")
